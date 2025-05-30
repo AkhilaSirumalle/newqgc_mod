@@ -11,6 +11,9 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import QtQuick 2.15
+import QtQuick.Controls 2.15
+import QtPositioning 5.15
 
 import QGroundControl
 import QGroundControl.Controls
@@ -208,4 +211,198 @@ Rectangle {
             onClicked:      largeProgressBar._userHide = true
         }
     }
+    //custom toolbar widgets
+    Button {
+        id: topRightPopupButton
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: 8
+        text: "Info"
+        onClicked: {
+            messageDialog.open()
+
+        }
+    }
+    MessageDialog {
+        id: messageDialog
+        title: "Hello"
+        text: "This is a popup message!"
+    }
+
+    Button {
+        id: modeChangeButton
+        anchors.top: parent.top
+        anchors.right: topRightPopupButton.left
+        anchors.topMargin: 0
+        anchors.rightMargin: 8
+        text: "Set Guided"
+        enabled: QGroundControl.multiVehicleManager.activeVehicle !== null
+
+        onClicked: {
+            var vehicle = QGroundControl.multiVehicleManager.activeVehicle
+            if (vehicle) {
+                            // Change mode to "Loiter" (or any supported mode)
+                            vehicle.setFlightMode("Guided")
+                            modeChangeDialog.open()
+                        }
+         }
+    }
+        MessageDialog {
+                    id: modeChangeDialog
+                    title: "Mode Change"
+                    text: "Requested mode change to Guided."
+                    // icon: StandardIcon.Information
+                }
+
+        Button {
+            id: armDisarmButton
+            anchors.top: parent.top
+            anchors.right: modeChangeButton.left
+            anchors.topMargin: 0
+            anchors.rightMargin: 8
+            text: "Arm/Disarm"
+            enabled: QGroundControl.multiVehicleManager.activeVehicle !== null
+
+            onClicked: {
+                var vehicle = QGroundControl.multiVehicleManager.activeVehicle
+                if (vehicle) {
+                    if (!vehicle.armed) {
+                        vehicle.armed = true    // Arm the vehicle
+                        armDisarmDialog.text = "Vehicle is now ARMED."
+                    } else {
+                        vehicle.armed = false   // Disarm the vehicle
+                        armDisarmDialog.text = "Vehicle is now DISARMED."
+                    }
+                    armDisarmDialog.open()
+                }
+            }
+        }
+
+        MessageDialog {
+            id: armDisarmDialog
+            title: "Arm/Disarm Status"
+            // text is set dynamically
+        }
+
+
+        Button {
+            id: guidedTakeoffDialogBtn
+            text: "Guided Takeoff"
+            anchors.right: armDisarmButton.left
+            anchors.top: controlDialog.bottom
+            anchors.topMargin: 10
+            onClicked: {
+                guidedTakeoffDialog.open()
+            }
+        }
+
+        Dialog {
+            id: guidedTakeoffDialog
+            title: "Guided Takeoff Input"
+            modal: true
+            standardButtons: Dialog.Ok
+
+            Column {
+                spacing: 12
+                padding: 20
+
+                TextField {
+                    id: guidedLat
+                    placeholderText: "Latitude"
+                    width: 200
+                }
+
+                TextField {
+                    id: guidedLon
+                    placeholderText: "Longitude"
+                    width: 200
+                }
+
+                TextField {
+                    id: guidedAlt
+                    placeholderText: "Altitude (m)"
+                    width: 200
+                }
+
+                Button {
+                    text: "Go to location"
+                    onClicked: {
+                        var lat = parseFloat(guidedLat.text.trim())
+                        var lon = parseFloat(guidedLon.text.trim())
+                        var alt = parseFloat(guidedAlt.text.trim())
+                        var vehicle = QGroundControl.multiVehicleManager.activeVehicle
+
+                        if (!vehicle) {
+                            console.log("No active vehicle connected.")
+                            return
+                        }
+
+                        if (isNaN(lat) || isNaN(lon) || isNaN(alt)) {
+                            console.log("Invalid input: Enter valid Latitude, Longitude, and Altitude.")
+                            return
+                        }
+
+                        console.log("Requesting Guided mode...")
+                        vehicle.flightMode="Guided"
+
+                        console.log("Requesting Arm...")
+                        vehicle.armed=true
+                        vehicle.guidedModeTakeoff(alt)
+
+                        var takeoffTimer = Qt.createQmlObject(`
+                            import QtQuick 2.0
+                            Timer {
+                                interval: 10
+                                repeat: true
+                                running: true
+                                onTriggered: {
+                                    var v = QGroundControl.multiVehicleManager.activeVehicle
+                                    if (v && v.armed && v.flightMode === "Guided") {
+                                        console.log("Armed and in Guided mode. Taking off to " + ${alt})
+
+                                        v.guidedModeGotoLocation(QtPositioning.coordinate(${lat}, ${lon}, ${alt}))
+                                        stop()
+                                        guidedTakeoffDialog.close()
+                                    } else {
+                                        console.log("Waiting for vehicle to be armed and in Guided mode...")
+                                    }
+                                }
+                            }
+                        `, guidedTakeoffDialog)
+                    }
+                }
+
+
+
+
+            }
+        }
+
+
+        // import QtQuick 2.15
+        // import QtQuick.Controls 2.15
+        // import QtPositioning 5.15
+
+
+
+
+
+
+
+
+
+
+
 }
+
+
+
+
+
+
+
+
+
+
+
+
